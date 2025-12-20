@@ -4,16 +4,6 @@ namespace VkTest
 {
     std::ostream& operator<<(std::ostream& os, const GPU& gpu)
     {
-        // return os << gpu.m_DeviceProperties.deviceName << " (driver version: " <<
-        // std::to_string(VK_API_VERSION_MAJOR(gpu.m_DeviceProperties.driverVersion)) << '.' <<
-        // std::to_string(VK_API_VERSION_MINOR(gpu.m_DeviceProperties.driverVersion)) << '.' <<
-        // std::to_string(VK_API_VERSION_PATCH(gpu.m_DeviceProperties.driverVersion)) << " variant " <<
-        // std::to_string(VK_API_VERSION_VARIANT(gpu.m_DeviceProperties.driverVersion)) << ") (api version: " <<
-        // std::to_string(VK_API_VERSION_MAJOR(gpu.m_DeviceProperties.apiVersion)) << '.' <<
-        // std::to_string(VK_API_VERSION_MINOR(gpu.m_DeviceProperties.apiVersion)) << '.' <<
-        // std::to_string(VK_API_VERSION_PATCH(gpu.m_DeviceProperties.apiVersion)) << " variant " <<
-        // std::to_string(VK_API_VERSION_VARIANT(gpu.m_DeviceProperties.apiVersion)) << ')';
-
         os << gpu.m_DeviceProperties.deviceName << " (type: ";
 
         switch (gpu.m_DeviceProperties.deviceType)
@@ -43,7 +33,9 @@ namespace VkTest
         std::to_string(VK_API_VERSION_MAJOR(gpu.m_DeviceProperties.apiVersion)) << '.' <<
         std::to_string(VK_API_VERSION_MINOR(gpu.m_DeviceProperties.apiVersion)) << '.' <<
         std::to_string(VK_API_VERSION_PATCH(gpu.m_DeviceProperties.apiVersion)) << " variant " <<
-        std::to_string(VK_API_VERSION_VARIANT(gpu.m_DeviceProperties.apiVersion)) << '\n';
+        std::to_string(VK_API_VERSION_VARIANT(gpu.m_DeviceProperties.apiVersion)) <<
+        "\nhas graphics: " << (gpu.m_GraphicsQueueIndex.has_value() ? "yes" : "no") <<
+        "\ncan present: " << (gpu.m_PresentQueueIndex.has_value() ? "yes" : "no") << '\n';
         return os;
     }
 }

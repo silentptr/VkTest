@@ -21,15 +21,37 @@ namespace VkTest
         }
         else
         {
+            // look for discrete first
+
             for (auto& g : m_GPUs)
             {
-                if (g.HasGraphicsQueue() && g.HasPresentQueue())
+                if (g.IsDiscrete() && g.HasGraphicsQueue() && g.HasPresentQueue())
                 {
                     gpu = &g;
+                    break;
+                }
+            }
 
-                    if (g.IsDiscrete())
+            if (gpu == nullptr)
+            {
+                // then look for integrated
+
+                for (auto& g : m_GPUs)
+                {
+                    if (g.IsIntegrated() && g.HasGraphicsQueue() && g.HasPresentQueue())
                     {
+                        gpu = &g;
                         break;
+                    }
+                }
+
+                if (gpu == nullptr)
+                {
+                    // fall back to anything that can do graphics & presentation
+                    
+                    for (auto& g : m_GPUs)
+                    {
+                        if (g.HasGraphicsQueue() && g.HasPresentQueue()) { gpu = &g; break; }
                     }
                 }
             }

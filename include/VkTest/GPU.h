@@ -55,6 +55,7 @@ namespace VkTest
         inline VkPhysicalDevice GetPhysicalDevice() const noexcept { return m_PhysicalDevice; }
         inline const char* const GetDeviceName() const noexcept { return m_DeviceProperties.deviceName; }
         inline bool IsDiscrete() const noexcept { return m_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU; }
+        inline bool IsIntegrated() const noexcept { return m_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU; }
         inline bool HasGraphicsQueue() const noexcept { return m_GraphicsQueueIndex.has_value(); }
         inline std::uint32_t GetGraphicsQueueIndex() const noexcept { return m_GraphicsQueueIndex.value(); }
         inline bool HasPresentQueue() const noexcept { return m_PresentQueueIndex.has_value(); }
