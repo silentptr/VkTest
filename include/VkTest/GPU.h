@@ -2,6 +2,7 @@
 #define VKTEST_GPU_H_
 
 #include <cstdint>
+#include <cstring>
 #include <vector>
 #include <optional>
 #include <iostream>

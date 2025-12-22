@@ -7,7 +7,7 @@ namespace VkTest
 
     VKAPI_ATTR VkBool32 VKAPI_CALL App::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
     {
-        //std::cerr << "Validation layer message: " << pCallbackData->pMessage << '\n';
+        std::cerr << "Validation layer message: " << pCallbackData->pMessage << '\n';
         return VK_FALSE;
     }
 #endif
@@ -102,7 +102,7 @@ namespace VkTest
         VkExtent2D extent;
         const auto& surfaceCapabilities = m_GPU->GetSurfaceCapabilities();
 
-        if (surfaceCapabilities.currentExtent.width == 0xFFFFFFFF)
+        if (surfaceCapabilities.currentExtent.width != 0xFFFFFFFF)
         {
             extent.width = surfaceCapabilities.currentExtent.width;
             extent.height = surfaceCapabilities.currentExtent.height;
