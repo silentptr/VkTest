@@ -11,6 +11,9 @@ namespace VkTest
         return VK_FALSE;
     }
 #endif
+
+    const std::vector<const char*> App::m_DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
     void App::CreateLogicalDevice()
     {
         GPU* gpu = nullptr;
@@ -25,7 +28,7 @@ namespace VkTest
 
             for (auto& g : m_GPUs)
             {
-                if (g.IsDiscrete() && g.HasGraphicsQueue() && g.HasPresentQueue())
+                if (g.IsDiscrete() && g.IsDeviceSuitable())
                 {
                     gpu = &g;
                     break;
@@ -38,7 +41,7 @@ namespace VkTest
 
                 for (auto& g : m_GPUs)
                 {
-                    if (g.IsIntegrated() && g.HasGraphicsQueue() && g.HasPresentQueue())
+                    if (g.IsIntegrated() && g.IsDeviceSuitable())
                     {
                         gpu = &g;
                         break;
@@ -51,13 +54,13 @@ namespace VkTest
                     
                     for (auto& g : m_GPUs)
                     {
-                        if (g.HasGraphicsQueue() && g.HasPresentQueue()) { gpu = &g; break; }
+                        if (g.HasGraphicsQueue() && g.IsDeviceSuitable()) { gpu = &g; break; }
                     }
                 }
             }
         }
         
-        if (gpu == nullptr) { throw std::runtime_error("none of the gpus can do graphics AND presentation"); }
+        if (gpu == nullptr) { throw std::runtime_error("none of the gpus are suitable"); }
 
         m_GPU = gpu;
         std::cout << "\nSelected GPU: " << (m_GPU->GetDeviceName()) << '\n';
@@ -79,11 +82,11 @@ namespace VkTest
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.queueCreateInfoCount = static_cast<std::uint32_t>(queueCreateInfos.size());
         createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.enabledExtensionCount = 0;
+        createInfo.enabledExtensionCount = static_cast<std::uint32_t>(m_DeviceExtensions.size());
+        createInfo.ppEnabledExtensionNames = m_DeviceExtensions.data();
 
         if (vkCreateDevice(m_GPU->GetPhysicalDevice(), &createInfo, NULL, &m_VkDevice) != VK_SUCCESS)
         {
@@ -93,8 +96,71 @@ namespace VkTest
         vkGetDeviceQueue(m_VkDevice, m_GPU->GetGraphicsQueueIndex(), 0, &m_GraphicsQueue);
         vkGetDeviceQueue(m_VkDevice, m_GPU->GetPresentQueueIndex(), 0, &m_PresentQueue);
     }
+    
+    void App::CreateSwapChain()
+    {
+        VkExtent2D extent;
+        const auto& surfaceCapabilities = m_GPU->GetSurfaceCapabilities();
 
-    App::App() : m_Window(NULL), m_VkInst(VK_NULL_HANDLE), m_Surface(VK_NULL_HANDLE), m_VkDevice(VK_NULL_HANDLE)
+        if (surfaceCapabilities.currentExtent.width == 0xFFFFFFFF)
+        {
+            extent.width = surfaceCapabilities.currentExtent.width;
+            extent.height = surfaceCapabilities.currentExtent.height;
+        }
+        else
+        {
+            int w, h;
+            glfwGetFramebufferSize(m_Window, &w, &h);
+            extent.width = std::clamp(static_cast<std::uint32_t>(w), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
+            extent.height = std::clamp(static_cast<std::uint32_t>(h), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
+        }
+
+        std::uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+
+        if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount)
+        {
+            imageCount = surfaceCapabilities.maxImageCount;
+        }
+
+        const auto& surfaceFormat = m_GPU->GetSurfaceFormat();
+
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = m_Surface;
+        createInfo.minImageCount = imageCount;
+        createInfo.imageFormat = surfaceFormat.format;
+        createInfo.imageColorSpace = surfaceFormat.colorSpace;
+        createInfo.imageExtent = extent;
+        createInfo.imageArrayLayers = 1;
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        std::uint32_t queueFamilyIndices[] = {m_GPU->GetGraphicsQueueIndex(), m_GPU->GetPresentQueueIndex()};
+        
+        if (m_GPU->GetGraphicsQueueIndex() != m_GPU->GetPresentQueueIndex())
+        {
+            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            createInfo.queueFamilyIndexCount = 2;
+            createInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+        else
+        {
+            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            createInfo.queueFamilyIndexCount = 0;
+            createInfo.pQueueFamilyIndices = nullptr;
+        }
+
+        createInfo.preTransform = surfaceCapabilities.currentTransform;
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        createInfo.presentMode = m_GPU->GetPresentMode();
+        createInfo.clipped = VK_TRUE;
+        createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+        if (vkCreateSwapchainKHR(m_VkDevice, &createInfo, NULL, &m_SwapChain) != VK_SUCCESS)
+        {
+            throw std::runtime_error("couldn't create swapchain");
+        }
+    }
+
+    App::App() : m_Window(NULL), m_VkInst(VK_NULL_HANDLE), m_Surface(VK_NULL_HANDLE), m_VkDevice(VK_NULL_HANDLE), m_SwapChain(VK_NULL_HANDLE)
     {
         if (glfwInit() == GLFW_FALSE)
         {
@@ -200,6 +266,9 @@ namespace VkTest
         }
 
         CreateLogicalDevice();
+        std::cout << "Logical device created.\n";
+        CreateSwapChain();
+        std::cout << "Swap chain created.\n";
         //glfwShowWindow(m_Window);
     }
 
@@ -208,6 +277,11 @@ namespace VkTest
         if (m_Window != NULL)
         {
             glfwDestroyWindow(m_Window);
+        }
+
+        if (m_SwapChain != VK_NULL_HANDLE)
+        {
+            vkDestroySwapchainKHR(m_VkDevice, m_SwapChain, NULL);
         }
         
         if (m_VkDevice != VK_NULL_HANDLE)

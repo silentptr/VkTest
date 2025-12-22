@@ -22,6 +22,8 @@ namespace VkTest
         static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT*, void*);
     #endif
 
+        static const std::vector<const char*> m_DeviceExtensions;
+
         GLFWwindow* m_Window;
 
         VkInstance m_VkInst;
@@ -36,8 +38,10 @@ namespace VkTest
         VkDevice m_VkDevice;
         VkQueue m_GraphicsQueue;
         VkQueue m_PresentQueue;
+        VkSwapchainKHR m_SwapChain;
 
         void CreateLogicalDevice();
+        void CreateSwapChain();
     public:
         App();
         ~App() noexcept;
