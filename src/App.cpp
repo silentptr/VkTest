@@ -7,7 +7,11 @@ namespace VkTest
 
     VKAPI_ATTR VkBool32 VKAPI_CALL App::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
     {
-        std::cerr << "Validation layer message: " << pCallbackData->pMessage << '\n';
+        if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+        {
+            std::cerr << "Validation layer message: " << pCallbackData->pMessage << '\n';
+        }
+        
         return VK_FALSE;
     }
 #endif
@@ -99,20 +103,19 @@ namespace VkTest
     
     void App::CreateSwapChain()
     {
-        VkExtent2D extent;
         const auto& surfaceCapabilities = m_GPU->GetSurfaceCapabilities();
 
         if (surfaceCapabilities.currentExtent.width != 0xFFFFFFFF)
         {
-            extent.width = surfaceCapabilities.currentExtent.width;
-            extent.height = surfaceCapabilities.currentExtent.height;
+            m_SwapChainExtent.width = surfaceCapabilities.currentExtent.width;
+            m_SwapChainExtent.height = surfaceCapabilities.currentExtent.height;
         }
         else
         {
             int w, h;
             glfwGetFramebufferSize(m_Window, &w, &h);
-            extent.width = std::clamp(static_cast<std::uint32_t>(w), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
-            extent.height = std::clamp(static_cast<std::uint32_t>(h), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
+            m_SwapChainExtent.width = std::clamp(static_cast<std::uint32_t>(w), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
+            m_SwapChainExtent.height = std::clamp(static_cast<std::uint32_t>(h), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
         }
 
         std::uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
@@ -130,7 +133,7 @@ namespace VkTest
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
+        createInfo.imageExtent = m_SwapChainExtent;
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         std::uint32_t queueFamilyIndices[] = {m_GPU->GetGraphicsQueueIndex(), m_GPU->GetPresentQueueIndex()};
@@ -158,9 +161,43 @@ namespace VkTest
         {
             throw std::runtime_error("couldn't create swapchain");
         }
+
+        std::uint32_t enumSize;
+        vkGetSwapchainImagesKHR(m_VkDevice, m_SwapChain, &enumSize, NULL);
+        m_SwapChainImages.resize(enumSize);
+        vkGetSwapchainImagesKHR(m_VkDevice, m_SwapChain, &enumSize, m_SwapChainImages.data());
     }
 
-    App::App() : m_Window(NULL), m_VkInst(VK_NULL_HANDLE), m_Surface(VK_NULL_HANDLE), m_VkDevice(VK_NULL_HANDLE), m_SwapChain(VK_NULL_HANDLE)
+    void App::CreateImageViews()
+    {
+        m_SwapChainImageViews.resize(m_SwapChainImages.size());
+
+        for (std::uint32_t i = 0; i < m_SwapChainImages.size(); ++i)
+        {
+            VkImageViewCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image = m_SwapChainImages[i];
+            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format = m_GPU->GetSurfaceFormat().format;
+            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            createInfo.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(m_VkDevice, &createInfo, NULL, &m_SwapChainImageViews[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("failed to create image views");
+            }
+        }
+    }
+
+    App::App() : m_Window(NULL), m_VkInst(VK_NULL_HANDLE), m_Surface(VK_NULL_HANDLE), m_VkDevice(VK_NULL_HANDLE), m_SwapChain(VK_NULL_HANDLE), m_RenderPass(VK_NULL_HANDLE), m_PipelineLayout(VK_NULL_HANDLE), m_Pipeline(VK_NULL_HANDLE),
+    m_CommandPool(VK_NULL_HANDLE), m_CommandBuffer(VK_NULL_HANDLE)
     {
         if (glfwInit() == GLFW_FALSE)
         {
@@ -212,7 +249,6 @@ namespace VkTest
     #ifdef VK_TEST_DEBUG
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     #endif
-
         createInfo.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
     #ifdef VK_TEST_DEBUG
@@ -274,9 +310,34 @@ namespace VkTest
 
     App::~App() noexcept
     {
-        if (m_Window != NULL)
+        if (m_CommandPool != VK_NULL_HANDLE)
         {
-            glfwDestroyWindow(m_Window);
+            vkDestroyCommandPool(m_VkDevice, m_CommandPool, NULL);
+        }
+
+        for (auto framebuffer : m_Framebuffers)
+        {
+            vkDestroyFramebuffer(m_VkDevice, framebuffer, NULL);
+        }
+
+        if (m_Pipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(m_VkDevice, m_Pipeline, NULL);
+        }
+
+        if (m_PipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(m_VkDevice, m_PipelineLayout, NULL);
+        }
+
+        if (m_RenderPass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(m_VkDevice, m_RenderPass, NULL);
+        }
+
+        for (const auto& imageView : m_SwapChainImageViews)
+        {
+            vkDestroyImageView(m_VkDevice, imageView, NULL);
         }
 
         if (m_SwapChain != VK_NULL_HANDLE)
@@ -309,6 +370,11 @@ namespace VkTest
         if (m_VkInst != VK_NULL_HANDLE)
         {
             vkDestroyInstance(m_VkInst, NULL);
+        }
+
+        if (m_Window != NULL)
+        {
+            glfwDestroyWindow(m_Window);
         }
 
         glfwTerminate();

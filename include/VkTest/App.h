@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <vector>
 #include <set>
+#include <fstream>
+#include <string>
 
 #include "VkTest/IncludeVolk.h"
 #include "VkTest/GPU.h"
@@ -39,9 +41,26 @@ namespace VkTest
         VkQueue m_GraphicsQueue;
         VkQueue m_PresentQueue;
         VkSwapchainKHR m_SwapChain;
+        VkExtent2D m_SwapChainExtent;
+        std::vector<VkImage> m_SwapChainImages;
+        std::vector<VkImageView> m_SwapChainImageViews;
+
+        VkRenderPass m_RenderPass;
+        VkPipelineLayout m_PipelineLayout;
+        VkPipeline m_Pipeline;
+        std::vector<VkFramebuffer> m_Framebuffers;
+
+        VkCommandPool m_CommandPool;
+        VkCommandBuffer m_CommandBuffer;
 
         void CreateLogicalDevice();
         void CreateSwapChain();
+        void CreateImageViews();
+        void CreateRenderPass();
+        void CreateGraphicsPipeline();
+        void CreateFramebuffers();
+        void CreateCommandPool();
+        void CreateCommandBuffer();
     public:
         App();
         ~App() noexcept;

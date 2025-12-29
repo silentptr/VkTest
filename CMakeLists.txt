@@ -8,6 +8,7 @@ find_package(Vulkan 1.3 REQUIRED COMPONENTS volk)
 
 set(VKTEST_SRC_FILES
     src/App.cpp
+    src/AppGraphics.cpp
     src/GPU.cpp
     src/Main.cpp
     src/VolkImpl.cpp
