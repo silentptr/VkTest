@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.7)
-project(VulkanTest VERSION 1.0.0 LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.31)
+project(VulkanTest VERSION 1.0.0 LANGUAGES CXX)
 
 option(VK_TEST_DEBUG "Enable debugging" OFF)
 
@@ -8,10 +8,16 @@ find_package(Vulkan 1.3 REQUIRED COMPONENTS volk)
 
 set(VKTEST_SRC_FILES
     src/App.cpp
-    src/AppGraphics.cpp
+    src/AppSession.cpp
+    src/CommandBuffer.cpp
+    src/Framebuffer.cpp
     src/GPU.cpp
+    src/GraphicsDevice.cpp
     src/Main.cpp
+    src/Pipeline.cpp
+    src/SwapChain.cpp
     src/VolkImpl.cpp
+    src/Window.cpp
 )
 
 message(STATUS "Debugging: ${VK_TEST_DEBUG}")

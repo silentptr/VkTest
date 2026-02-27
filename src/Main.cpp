@@ -12,7 +12,7 @@ int main()
     }
     catch (const std::runtime_error& e)
     {
-        std::cerr << "Error occured: " << e.what() << "\n";
+        std::cerr << "Error occured: " << e.what() << '\n';
         return 1;
     }
     

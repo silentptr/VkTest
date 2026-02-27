@@ -1,24 +1,24 @@
-#include "VkTest/App.h"
+#include "VkTest/Pipeline.h"
 
 namespace VkTest
 {
-    std::vector<char> fileToCharArray(const std::string& path)
+    void fileToCharArray(const std::string& path, std::vector<char>& buffer)
     {
         std::ifstream file(path, std::ios::ate | std::ios::binary);
 
-        if (file.is_open()) { throw std::runtime_error("couldn't open '" + path + "'"); }
+        if (!file.is_open()) { throw std::runtime_error("couldn't open '" + path + "'"); }
 
         std::size_t fileSize = static_cast<std::size_t>(file.tellg());
-        std::vector<char> buffer(fileSize);
+        buffer.resize(fileSize);
         file.seekg(0);
         file.read(buffer.data(), fileSize);
-        return buffer;
     }
 
-    void App::CreateRenderPass()
+    Pipeline::Pipeline(const GraphicsDevice& gd, const SwapChain& swapChain) : m_GraphicsDevice(gd),
+    m_RenderPass(VK_NULL_HANDLE), m_PipelineLayout(VK_NULL_HANDLE), m_Pipeline(VK_NULL_HANDLE)
     {
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = m_GPU->GetSurfaceFormat().format;
+        colorAttachment.format = m_GraphicsDevice.GetGPU()->GetSurfaceFormat().format;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -43,24 +43,34 @@ namespace VkTest
         renderPassCreateInfo.subpassCount = 1;
         renderPassCreateInfo.pSubpasses = &subpass;
 
-        if (vkCreateRenderPass(m_VkDevice, &renderPassCreateInfo, NULL, &m_RenderPass) != VK_SUCCESS)
+        if (vkCreateRenderPass(m_GraphicsDevice.GetVkDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) != VK_SUCCESS)
         {
+            Cleanup();
             throw std::runtime_error("failed to create render pass");
         }
-    }
 
-    void App::CreateGraphicsPipeline()
-    {
-        auto vertShaderCode = fileToCharArray("shaders/vertex.spv");
-        auto fragShaderCode = fileToCharArray("shaders/fragment.spv");
+        std::vector<char> vertShaderCode, fragShaderCode;
 
+        try
+        {
+            fileToCharArray("shaders/vertex.spv", vertShaderCode);
+            fileToCharArray("shaders/fragment.spv", fragShaderCode);
+        }
+        catch (...)
+        {
+            Cleanup();
+            throw;
+        }
+        
         VkShaderModule vertShaderModule;
         VkShaderModuleCreateInfo vertShaderCreateInfo{};
         vertShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         vertShaderCreateInfo.codeSize = vertShaderCode.size();
         vertShaderCreateInfo.pCode = reinterpret_cast<const uint32_t*>(vertShaderCode.data());
-        if (vkCreateShaderModule(m_VkDevice, &vertShaderCreateInfo, NULL, &vertShaderModule) != VK_SUCCESS)
+
+        if (vkCreateShaderModule(m_GraphicsDevice.GetVkDevice(), &vertShaderCreateInfo, NULL, &vertShaderModule) != VK_SUCCESS)
         {
+            Cleanup();
             throw std::runtime_error("failed to create vertex shader module");
         }
 
@@ -69,8 +79,10 @@ namespace VkTest
         fragShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         fragShaderCreateInfo.codeSize = fragShaderCode.size();
         fragShaderCreateInfo.pCode = reinterpret_cast<const uint32_t*>(fragShaderCode.data());
-        if (vkCreateShaderModule(m_VkDevice, &fragShaderCreateInfo, NULL, &fragShaderModule) != VK_SUCCESS)
+
+        if (vkCreateShaderModule(m_GraphicsDevice.GetVkDevice(), &fragShaderCreateInfo, NULL, &fragShaderModule) != VK_SUCCESS)
         {
+            Cleanup();
             throw std::runtime_error("failed to create fragment shader module");
         }
 
@@ -107,14 +119,14 @@ namespace VkTest
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = static_cast<float>(m_SwapChainExtent.width);
-        viewport.height = static_cast<float>(m_SwapChainExtent.height);
+        viewport.width = static_cast<float>(swapChain.GetExtent().width);
+        viewport.height = static_cast<float>(swapChain.GetExtent().height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = m_SwapChainExtent;
+        scissor.extent = swapChain.GetExtent();
 
         VkPipelineViewportStateCreateInfo viewportStateCreateInfo{};
         viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -172,8 +184,9 @@ namespace VkTest
         pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
         pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
-        if (vkCreatePipelineLayout(m_VkDevice, &pipelineLayoutCreateInfo, NULL, &m_PipelineLayout) != VK_SUCCESS)
+        if (vkCreatePipelineLayout(m_GraphicsDevice.GetVkDevice(), &pipelineLayoutCreateInfo, VK_NULL_HANDLE, &m_PipelineLayout) != VK_SUCCESS)
         {
+            Cleanup();
             throw std::runtime_error("failed to create pipeline layout");
         }
 
@@ -195,63 +208,32 @@ namespace VkTest
         pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
         pipelineCreateInfo.basePipelineIndex = -1;
 
-        if (vkCreateGraphicsPipelines(m_VkDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &m_Pipeline) != VK_SUCCESS)
+        if (vkCreateGraphicsPipelines(m_GraphicsDevice.GetVkDevice(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, VK_NULL_HANDLE, &m_Pipeline) != VK_SUCCESS)
         {
+            Cleanup();
             throw std::runtime_error("failed to create graphics pipeline");
         }
 
-        vkDestroyShaderModule(m_VkDevice, fragShaderModule, NULL);
-        vkDestroyShaderModule(m_VkDevice, vertShaderModule, NULL);
+        vkDestroyShaderModule(m_GraphicsDevice.GetVkDevice(), fragShaderModule, nullptr);
+        vkDestroyShaderModule(m_GraphicsDevice.GetVkDevice(), vertShaderModule, nullptr);
+        std::cout << "Pipeline created.\n";
     }
 
-    void App::CreateFramebuffers()
+    void Pipeline::Cleanup() noexcept
     {
-        m_Framebuffers.resize(m_SwapChainImageViews.size());
-
-        for (size_t i = 0; i < m_SwapChainImageViews.size(); i++)
+        if (m_Pipeline != VK_NULL_HANDLE)
         {
-            VkImageView attachments[] = {m_SwapChainImageViews[i]};
-
-            VkFramebufferCreateInfo framebufferCreateInfo{};
-            framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferCreateInfo.renderPass = m_RenderPass;
-            framebufferCreateInfo.attachmentCount = 1;
-            framebufferCreateInfo.pAttachments = attachments;
-            framebufferCreateInfo.width = m_SwapChainExtent.width;
-            framebufferCreateInfo.height = m_SwapChainExtent.height;
-            framebufferCreateInfo.layers = 1;
-
-            if (vkCreateFramebuffer(m_VkDevice, &framebufferCreateInfo, NULL, &m_Framebuffers[i]) != VK_SUCCESS)
-            {
-                throw std::runtime_error("failed to create framebuffer");
-            }
+            vkDestroyPipeline(m_GraphicsDevice.GetVkDevice(), m_Pipeline, nullptr);
         }
-    }
 
-    void App::CreateCommandPool()
-    {
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = m_GPU->GetGraphicsQueueIndex();
-
-        if (vkCreateCommandPool(m_VkDevice, &poolInfo, NULL, &m_CommandPool) != VK_SUCCESS)
+        if (m_PipelineLayout != VK_NULL_HANDLE)
         {
-            throw std::runtime_error("failed to create command pool");
+            vkDestroyPipelineLayout(m_GraphicsDevice.GetVkDevice(), m_PipelineLayout, nullptr);
         }
-    }
 
-    void App::CreateCommandBuffer()
-    {
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = m_CommandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = 1;
-
-        if (vkAllocateCommandBuffers(m_VkDevice, &allocInfo, &m_CommandBuffer) != VK_SUCCESS)
+        if (m_RenderPass != VK_NULL_HANDLE)
         {
-            throw std::runtime_error("failed to allocate command buffers");
+            vkDestroyRenderPass(m_GraphicsDevice.GetVkDevice(), m_RenderPass, nullptr);
         }
     }
 }

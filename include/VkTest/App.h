@@ -9,58 +9,36 @@
 #include <string>
 
 #include "VkTest/IncludeVolk.h"
+#include "VkTest/AppSession.h"
+#include "VkTest/Window.h"
 #include "VkTest/GPU.h"
-
-#include <GLFW/glfw3.h>
+#include "VkTest/GraphicsDevice.h"
+#include "VkTest/SwapChain.h"
+#include "VkTest/Pipeline.h"
+#include "VkTest/Framebuffer.h"
+#include "VkTest/CommandBuffer.h"
 
 namespace VkTest
 {
     class App
     {
     private:
-    #ifdef VK_TEST_DEBUG
-        static const char* m_ValidationLayers[];
-
-        static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT*, void*);
-    #endif
-
         static const std::vector<const char*> m_DeviceExtensions;
 
-        GLFWwindow* m_Window;
+        AppSession m_AppSession;
+        Window m_Window;
+        GraphicsDevice m_GraphicsDevice;
+        SwapChain m_SwapChain;
+        Pipeline m_Pipeline;
+        Framebuffer m_Framebuffer;
+        CommandBuffer m_CommandBuffer;
 
-        VkInstance m_VkInst;
-    #ifdef VK_TEST_DEBUG
-        VkDebugUtilsMessengerEXT m_DebugMessenger;
-    #endif
-        VkSurfaceKHR m_Surface;
+        VkSemaphore m_ImgAvailSemaphore;
+        VkSemaphore m_RenderDoneSemaphore;
+        VkFence m_InFlightFence;
 
-        std::vector<GPU> m_GPUs;
-        GPU* m_GPU;
-
-        VkDevice m_VkDevice;
-        VkQueue m_GraphicsQueue;
-        VkQueue m_PresentQueue;
-        VkSwapchainKHR m_SwapChain;
-        VkExtent2D m_SwapChainExtent;
-        std::vector<VkImage> m_SwapChainImages;
-        std::vector<VkImageView> m_SwapChainImageViews;
-
-        VkRenderPass m_RenderPass;
-        VkPipelineLayout m_PipelineLayout;
-        VkPipeline m_Pipeline;
-        std::vector<VkFramebuffer> m_Framebuffers;
-
-        VkCommandPool m_CommandPool;
-        VkCommandBuffer m_CommandBuffer;
-
-        void CreateLogicalDevice();
-        void CreateSwapChain();
-        void CreateImageViews();
-        void CreateRenderPass();
-        void CreateGraphicsPipeline();
-        void CreateFramebuffers();
-        void CreateCommandPool();
-        void CreateCommandBuffer();
+        void Loop();
+        void Draw();
     public:
         App();
         ~App() noexcept;

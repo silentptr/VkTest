@@ -2,381 +2,92 @@
 
 namespace VkTest
 {
-#ifdef VK_TEST_DEBUG
-    const char* App::m_ValidationLayers[] = { "VK_LAYER_KHRONOS_validation" };
-
-    VKAPI_ATTR VkBool32 VKAPI_CALL App::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
-    {
-        if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-        {
-            std::cerr << "Validation layer message: " << pCallbackData->pMessage << '\n';
-        }
-        
-        return VK_FALSE;
-    }
-#endif
-
     const std::vector<const char*> App::m_DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-    void App::CreateLogicalDevice()
+    App::App() : m_Window(m_AppSession), m_GraphicsDevice(m_AppSession, m_Window, m_DeviceExtensions), m_SwapChain(m_Window, m_GraphicsDevice), m_Pipeline(m_GraphicsDevice, m_SwapChain),
+    m_Framebuffer(m_GraphicsDevice, m_SwapChain, m_Pipeline), m_CommandBuffer(m_GraphicsDevice),
+    m_ImgAvailSemaphore(VK_NULL_HANDLE), m_RenderDoneSemaphore(VK_NULL_HANDLE), m_InFlightFence(VK_NULL_HANDLE)
     {
-        GPU* gpu = nullptr;
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        if (m_GPUs.size() == 1 && m_GPUs[0].HasGraphicsQueue())
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        if (vkCreateSemaphore(m_GraphicsDevice.GetVkDevice(), &semaphoreInfo, nullptr, &m_ImgAvailSemaphore) != VK_SUCCESS ||
+            vkCreateSemaphore(m_GraphicsDevice.GetVkDevice(), &semaphoreInfo, nullptr, &m_RenderDoneSemaphore) != VK_SUCCESS ||
+            vkCreateFence(m_GraphicsDevice.GetVkDevice(), &fenceInfo, nullptr, &m_InFlightFence) != VK_SUCCESS)
         {
-            gpu = &m_GPUs[0];
-        }
-        else
-        {
-            // look for discrete first
-
-            for (auto& g : m_GPUs)
-            {
-                if (g.IsDiscrete() && g.IsDeviceSuitable())
-                {
-                    gpu = &g;
-                    break;
-                }
-            }
-
-            if (gpu == nullptr)
-            {
-                // then look for integrated
-
-                for (auto& g : m_GPUs)
-                {
-                    if (g.IsIntegrated() && g.IsDeviceSuitable())
-                    {
-                        gpu = &g;
-                        break;
-                    }
-                }
-
-                if (gpu == nullptr)
-                {
-                    // fall back to anything that can do graphics & presentation
-                    
-                    for (auto& g : m_GPUs)
-                    {
-                        if (g.HasGraphicsQueue() && g.IsDeviceSuitable()) { gpu = &g; break; }
-                    }
-                }
-            }
-        }
-        
-        if (gpu == nullptr) { throw std::runtime_error("none of the gpus are suitable"); }
-
-        m_GPU = gpu;
-        std::cout << "\nSelected GPU: " << (m_GPU->GetDeviceName()) << '\n';
-        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        std::set<std::uint32_t> queueFamilyIndexes = {m_GPU->GetGraphicsQueueIndex(), m_GPU->GetPresentQueueIndex()};
-        float queuePriority = 1.0f;
-
-        for (std::uint32_t queueFamilyIndex : queueFamilyIndexes)
-        {
-            VkDeviceQueueCreateInfo queueCreateInfo{};
-            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfo.queueFamilyIndex = queueFamilyIndex;
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = &queuePriority;
-            queueCreateInfos.push_back(std::move(queueCreateInfo));
+            throw std::runtime_error("failed to create synchronization objects");
         }
 
-        VkPhysicalDeviceFeatures deviceFeatures{};
-
-        VkDeviceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        createInfo.queueCreateInfoCount = static_cast<std::uint32_t>(queueCreateInfos.size());
-        createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.enabledExtensionCount = static_cast<std::uint32_t>(m_DeviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = m_DeviceExtensions.data();
-
-        if (vkCreateDevice(m_GPU->GetPhysicalDevice(), &createInfo, NULL, &m_VkDevice) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create logical device");
-        }
-
-        vkGetDeviceQueue(m_VkDevice, m_GPU->GetGraphicsQueueIndex(), 0, &m_GraphicsQueue);
-        vkGetDeviceQueue(m_VkDevice, m_GPU->GetPresentQueueIndex(), 0, &m_PresentQueue);
-    }
-    
-    void App::CreateSwapChain()
-    {
-        const auto& surfaceCapabilities = m_GPU->GetSurfaceCapabilities();
-
-        if (surfaceCapabilities.currentExtent.width != 0xFFFFFFFF)
-        {
-            m_SwapChainExtent.width = surfaceCapabilities.currentExtent.width;
-            m_SwapChainExtent.height = surfaceCapabilities.currentExtent.height;
-        }
-        else
-        {
-            int w, h;
-            glfwGetFramebufferSize(m_Window, &w, &h);
-            m_SwapChainExtent.width = std::clamp(static_cast<std::uint32_t>(w), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
-            m_SwapChainExtent.height = std::clamp(static_cast<std::uint32_t>(h), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
-        }
-
-        std::uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
-
-        if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount)
-        {
-            imageCount = surfaceCapabilities.maxImageCount;
-        }
-
-        const auto& surfaceFormat = m_GPU->GetSurfaceFormat();
-
-        VkSwapchainCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = m_Surface;
-        createInfo.minImageCount = imageCount;
-        createInfo.imageFormat = surfaceFormat.format;
-        createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = m_SwapChainExtent;
-        createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        std::uint32_t queueFamilyIndices[] = {m_GPU->GetGraphicsQueueIndex(), m_GPU->GetPresentQueueIndex()};
-        
-        if (m_GPU->GetGraphicsQueueIndex() != m_GPU->GetPresentQueueIndex())
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices = queueFamilyIndices;
-        }
-        else
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            createInfo.queueFamilyIndexCount = 0;
-            createInfo.pQueueFamilyIndices = nullptr;
-        }
-
-        createInfo.preTransform = surfaceCapabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = m_GPU->GetPresentMode();
-        createInfo.clipped = VK_TRUE;
-        createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-        if (vkCreateSwapchainKHR(m_VkDevice, &createInfo, NULL, &m_SwapChain) != VK_SUCCESS)
-        {
-            throw std::runtime_error("couldn't create swapchain");
-        }
-
-        std::uint32_t enumSize;
-        vkGetSwapchainImagesKHR(m_VkDevice, m_SwapChain, &enumSize, NULL);
-        m_SwapChainImages.resize(enumSize);
-        vkGetSwapchainImagesKHR(m_VkDevice, m_SwapChain, &enumSize, m_SwapChainImages.data());
-    }
-
-    void App::CreateImageViews()
-    {
-        m_SwapChainImageViews.resize(m_SwapChainImages.size());
-
-        for (std::uint32_t i = 0; i < m_SwapChainImages.size(); ++i)
-        {
-            VkImageViewCreateInfo createInfo{};
-            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            createInfo.image = m_SwapChainImages[i];
-            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            createInfo.format = m_GPU->GetSurfaceFormat().format;
-            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            createInfo.subresourceRange.baseMipLevel = 0;
-            createInfo.subresourceRange.levelCount = 1;
-            createInfo.subresourceRange.baseArrayLayer = 0;
-            createInfo.subresourceRange.layerCount = 1;
-
-            if (vkCreateImageView(m_VkDevice, &createInfo, NULL, &m_SwapChainImageViews[i]) != VK_SUCCESS)
-            {
-                throw std::runtime_error("failed to create image views");
-            }
-        }
-    }
-
-    App::App() : m_Window(NULL), m_VkInst(VK_NULL_HANDLE), m_Surface(VK_NULL_HANDLE), m_VkDevice(VK_NULL_HANDLE), m_SwapChain(VK_NULL_HANDLE), m_RenderPass(VK_NULL_HANDLE), m_PipelineLayout(VK_NULL_HANDLE), m_Pipeline(VK_NULL_HANDLE),
-    m_CommandPool(VK_NULL_HANDLE), m_CommandBuffer(VK_NULL_HANDLE)
-    {
-        if (glfwInit() == GLFW_FALSE)
-        {
-            throw std::runtime_error("glfw failed to initialise");
-        }
-
-        glfwDefaultWindowHints();
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        m_Window = glfwCreateWindow(1280, 720, "Vulkan Test", NULL, NULL);
-
-        if (m_Window == NULL)
-        {
-            throw std::runtime_error("couldn't create window");
-        }
-
-        if (volkInitialize() != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to initialise volk");
-        }
-
-        VkApplicationInfo appInfo{};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Vulkan Test";
-        appInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-        appInfo.pEngineName = "No Engine";
-        appInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_3;
-
-        VkInstanceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        createInfo.pApplicationInfo = &appInfo;
-        std::uint32_t glfwExtensionCount;
-        const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-        if (glfwExtensions == NULL)
-        {
-            throw std::runtime_error("extensions not found");
-        }
-
-        std::vector<const char*> extensions;
-
-        for (std::uint32_t i = 0; i < glfwExtensionCount; ++i)
-        {
-            extensions.push_back(glfwExtensions[i]);
-        }
-
-    #ifdef VK_TEST_DEBUG
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    #endif
-        createInfo.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-        createInfo.ppEnabledExtensionNames = extensions.data();
-    #ifdef VK_TEST_DEBUG
-        createInfo.enabledLayerCount = 1;
-        createInfo.ppEnabledLayerNames = m_ValidationLayers;
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-        debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        debugCreateInfo.pfnUserCallback = DebugCallback;
-        createInfo.pNext = &debugCreateInfo;
-    #else
-        createInfo.enabledLayerCount = 0;
-    #endif
-
-        if (vkCreateInstance(&createInfo, NULL, &m_VkInst) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create instance");
-        }
-
-        volkLoadInstance(m_VkInst);
-
-    #ifdef VK_TEST_DEBUG
-        auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(m_VkInst, "vkCreateDebugUtilsMessengerEXT");
-
-        if (func == VK_NULL_HANDLE) { throw std::runtime_error("couldn't load debug messager create function"); }
-
-        if (func(m_VkInst, &debugCreateInfo, nullptr, &m_DebugMessenger) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to set up debug messenger");
-        }
-    #endif
-
-        if (glfwCreateWindowSurface(m_VkInst, m_Window, NULL, &m_Surface) != VK_SUCCESS)
-        {
-            throw std::runtime_error("couldn't create window surface");
-        }
-
-        std::uint32_t enumSize;
-        vkEnumeratePhysicalDevices(m_VkInst, &enumSize, NULL);
-
-        if (enumSize == 0) { throw std::runtime_error("no GPUs found"); }
-
-        std::vector<VkPhysicalDevice> physicalDevices(enumSize);
-        vkEnumeratePhysicalDevices(m_VkInst, &enumSize, physicalDevices.data());
-
-        for (const auto& device : physicalDevices)
-        {
-            const GPU& gpu = m_GPUs.emplace_back(device, m_Surface);
-            std::cout << "Found GPU: " << gpu << '\n';
-        }
-
-        CreateLogicalDevice();
-        std::cout << "Logical device created.\n";
-        CreateSwapChain();
-        std::cout << "Swap chain created.\n";
-        //glfwShowWindow(m_Window);
+        m_Window.Show();
+        Loop();
     }
 
     App::~App() noexcept
     {
-        if (m_CommandPool != VK_NULL_HANDLE)
+        if (m_ImgAvailSemaphore != VK_NULL_HANDLE) { vkDestroySemaphore(m_GraphicsDevice.GetVkDevice(), m_ImgAvailSemaphore, nullptr); }
+        if (m_RenderDoneSemaphore != VK_NULL_HANDLE) { vkDestroySemaphore(m_GraphicsDevice.GetVkDevice(), m_RenderDoneSemaphore, nullptr); }
+        if (m_InFlightFence != VK_NULL_HANDLE) { vkDestroyFence(m_GraphicsDevice.GetVkDevice(), m_InFlightFence, nullptr); }
+    }
+
+    void App::Loop()
+    {
+        while (!glfwWindowShouldClose(m_Window.GetHandle()))
         {
-            vkDestroyCommandPool(m_VkDevice, m_CommandPool, NULL);
+            glfwPollEvents();
+            Draw();
         }
 
-        for (auto framebuffer : m_Framebuffers)
+        vkDeviceWaitIdle(m_GraphicsDevice.GetVkDevice());
+    }
+
+    void App::Draw()
+    {
+        vkWaitForFences(m_GraphicsDevice.GetVkDevice(), 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(m_GraphicsDevice.GetVkDevice(), 1, &m_InFlightFence);
+
+        uint32_t imageIndex;
+        vkAcquireNextImageKHR(m_GraphicsDevice.GetVkDevice(), m_SwapChain.GetVkSwapChain(), UINT64_MAX, m_ImgAvailSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+        m_CommandBuffer.ResetBuffer();
+        m_CommandBuffer.BeginRenderPass(m_SwapChain, m_Framebuffer, m_Pipeline, imageIndex);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        VkSemaphore waitSemaphores[] = {m_ImgAvailSemaphore};
+        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &m_CommandBuffer.GetVkCommandBuffer();
+
+        VkSemaphore signalSemaphores[] = {m_RenderDoneSemaphore};
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        if (vkQueueSubmit(m_GraphicsDevice.GetVkGraphicsQueue(), 1, &submitInfo, m_InFlightFence) != VK_SUCCESS)
         {
-            vkDestroyFramebuffer(m_VkDevice, framebuffer, NULL);
+            throw std::runtime_error("failed to submit draw command buffer");
         }
 
-        if (m_Pipeline != VK_NULL_HANDLE)
-        {
-            vkDestroyPipeline(m_VkDevice, m_Pipeline, NULL);
-        }
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
-        if (m_PipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(m_VkDevice, m_PipelineLayout, NULL);
-        }
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
 
-        if (m_RenderPass != VK_NULL_HANDLE)
-        {
-            vkDestroyRenderPass(m_VkDevice, m_RenderPass, NULL);
-        }
+        VkSwapchainKHR swapChains[] = {m_SwapChain.GetVkSwapChain()};
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
 
-        for (const auto& imageView : m_SwapChainImageViews)
-        {
-            vkDestroyImageView(m_VkDevice, imageView, NULL);
-        }
+        presentInfo.pImageIndices = &imageIndex;
 
-        if (m_SwapChain != VK_NULL_HANDLE)
-        {
-            vkDestroySwapchainKHR(m_VkDevice, m_SwapChain, NULL);
-        }
-        
-        if (m_VkDevice != VK_NULL_HANDLE)
-        {
-            vkDestroyDevice(m_VkDevice, NULL);
-        }
-
-        if (m_Surface != VK_NULL_HANDLE)
-        {
-            vkDestroySurfaceKHR(m_VkInst, m_Surface, NULL);
-        }
-
-    #ifdef VK_TEST_DEBUG
-        if (m_DebugMessenger != VK_NULL_HANDLE)
-        {
-            auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_VkInst, "vkDestroyDebugUtilsMessengerEXT");
-
-            if (func != nullptr)
-            {
-                func(m_VkInst, m_DebugMessenger, NULL);
-            }
-        }
-    #endif
-
-        if (m_VkInst != VK_NULL_HANDLE)
-        {
-            vkDestroyInstance(m_VkInst, NULL);
-        }
-
-        if (m_Window != NULL)
-        {
-            glfwDestroyWindow(m_Window);
-        }
-
-        glfwTerminate();
+        vkQueuePresentKHR(m_GraphicsDevice.GetVkPresentQueue(), &presentInfo);
     }
 }
