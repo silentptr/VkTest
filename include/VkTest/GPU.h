@@ -36,7 +36,7 @@ namespace VkTest
         std::optional<VkPresentModeKHR> m_PresentMode;
         VkSwapchainKHR m_SwapChain;
     public:
-        inline GPU(VkPhysicalDevice pd, VkSurfaceKHR surf) noexcept : m_PhysicalDevice(pd), m_Surface(surf)
+        GPU(VkPhysicalDevice pd, VkSurfaceKHR surf) noexcept : m_PhysicalDevice(pd), m_Surface(surf)
         {
             vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_DeviceProperties);
             std::uint32_t enumSize;
@@ -105,20 +105,20 @@ namespace VkTest
             }
         }
 
-        inline VkPhysicalDevice GetPhysicalDevice() const noexcept { return m_PhysicalDevice; }
-        inline const char* const GetDeviceName() const noexcept { return m_DeviceProperties.deviceName; }
-        inline bool IsDiscrete() const noexcept { return m_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU; }
-        inline bool IsIntegrated() const noexcept { return m_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU; }
-        inline bool HasGraphicsQueue() const noexcept { return m_GraphicsQueueIndex.has_value(); }
-        inline std::uint32_t GetGraphicsQueueIndex() const noexcept { return m_GraphicsQueueIndex.value(); }
-        inline bool HasPresentQueue() const noexcept { return m_PresentQueueIndex.has_value(); }
-        inline std::uint32_t GetPresentQueueIndex() const noexcept { return m_PresentQueueIndex.value(); }
-        inline bool HasSwapChainSupport() const noexcept { return m_HasSwapChainSupport; }
-        inline const VkSurfaceCapabilitiesKHR& GetSurfaceCapabilities() const noexcept { return m_SurfaceCapabilities; }
-        inline const VkSurfaceFormatKHR& GetSurfaceFormat() const noexcept { return m_SurfaceFormat.value(); }
-        inline const VkPresentModeKHR& GetPresentMode() const noexcept { return m_PresentMode.value(); }
+        VkPhysicalDevice GetPhysicalDevice() const noexcept { return m_PhysicalDevice; }
+        const char* const GetDeviceName() const noexcept { return m_DeviceProperties.deviceName; }
+        bool IsDiscrete() const noexcept { return m_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU; }
+        bool IsIntegrated() const noexcept { return m_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU; }
+        bool HasGraphicsQueue() const noexcept { return m_GraphicsQueueIndex.has_value(); }
+        std::uint32_t GetGraphicsQueueIndex() const noexcept { return m_GraphicsQueueIndex.value(); }
+        bool HasPresentQueue() const noexcept { return m_PresentQueueIndex.has_value(); }
+        std::uint32_t GetPresentQueueIndex() const noexcept { return m_PresentQueueIndex.value(); }
+        bool HasSwapChainSupport() const noexcept { return m_HasSwapChainSupport; }
+        const VkSurfaceCapabilitiesKHR& GetSurfaceCapabilities() const noexcept { return m_SurfaceCapabilities; }
+        const VkSurfaceFormatKHR& GetSurfaceFormat() const noexcept { return m_SurfaceFormat.value(); }
+        const VkPresentModeKHR& GetPresentMode() const noexcept { return m_PresentMode.value(); }
 
-        inline bool IsDeviceSuitable() const noexcept { return HasGraphicsQueue() && HasPresentQueue() && HasSwapChainSupport() && m_SurfaceFormat.has_value() && m_PresentMode.has_value(); }
+        bool IsDeviceSuitable() const noexcept { return HasGraphicsQueue() && HasPresentQueue() && HasSwapChainSupport() && m_SurfaceFormat.has_value() && m_PresentMode.has_value(); }
     };
 
     std::ostream& operator<<(std::ostream&,const GPU&);
