@@ -34,6 +34,7 @@ namespace VkTest
         const VkSwapchainKHR& GetVkSwapChain() const noexcept { return m_SwapChain; }
         const VkExtent2D& GetExtent() const noexcept { return m_SwapChainExtent; }
         const std::vector<VkImageView>& GetSwapChainImageViews() const noexcept { return m_SwapChainImageViews; }
+        uint32_t GetImageCount() const noexcept { return static_cast<uint32_t>(m_SwapChainImages.size()); }
     };
 }
 

@@ -12,6 +12,7 @@ namespace VkTest
 
         std::vector<VkPhysicalDevice> physicalDevices(enumSize);
         vkEnumeratePhysicalDevices(sesh.GetVkInst(), &enumSize, physicalDevices.data());
+        std::cout << std::endl;
 
         for (const auto& device : physicalDevices)
         {
@@ -94,7 +95,7 @@ namespace VkTest
             throw std::runtime_error("failed to create logical device");
         }
 
-        std::cout << "Logical device created.\n";
+        std::cout << "Logical device created with " << m_GPU->GetDeviceName() << ".\n";
         vkGetDeviceQueue(m_VkDevice, m_GPU->GetGraphicsQueueIndex(), 0, &m_GraphicsQueue);
         vkGetDeviceQueue(m_VkDevice, m_GPU->GetPresentQueueIndex(), 0, &m_PresentQueue);
     }

@@ -12,7 +12,6 @@ namespace VkTest
 
         if (vkCreateCommandPool(m_GraphicsDevice.GetVkDevice(), &poolInfo, NULL, &m_CommandPool) != VK_SUCCESS)
         {
-            Cleanup();
             throw std::runtime_error("failed to create command pool");
         }
 
