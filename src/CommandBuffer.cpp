@@ -27,7 +27,7 @@ namespace VkTest
             throw std::runtime_error("failed to allocate command buffers");
         }
 
-        std::cout << "Created the command buffer.\n";
+        std::cout << "Created a command buffer.\n";
     }
 
     void CommandBuffer::Cleanup() noexcept

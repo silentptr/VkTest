@@ -32,13 +32,11 @@ namespace VkTest
         SwapChain m_SwapChain;
         Pipeline m_Pipeline;
         Framebuffer m_Framebuffer;
-        //CommandBuffer m_CommandBuffer;
 
         static constexpr int m_InFlightCount = 2;
         int m_InFlightIndex = 0;
 
         std::array<VkSemaphore, m_InFlightCount> m_ImgAvailSemaphores;
-        //std::array<VkSemaphore, m_InFlightCount> m_RenderDoneSemaphores;
         std::vector<VkSemaphore> m_RenderDoneSemaphores;
         std::array<VkFence, m_InFlightCount> m_InFlightFences;
         std::vector<CommandBuffer> m_CmdBuffers;

@@ -24,7 +24,7 @@ namespace VkTest
         CommandBuffer(const GraphicsDevice&);
         CommandBuffer(CommandBuffer&& cb) noexcept : m_GraphicsDevice(cb.m_GraphicsDevice), m_CommandPool(cb.m_CommandPool), m_CommandBuffer(cb.m_CommandBuffer)
         {
-            m_CommandPool = VK_NULL_HANDLE;
+            cb.m_CommandPool = VK_NULL_HANDLE;
         }
         CommandBuffer(const CommandBuffer&) = delete;
         ~CommandBuffer() noexcept { Cleanup(); }
@@ -35,6 +35,7 @@ namespace VkTest
             m_CommandPool = cb.m_CommandPool;
             m_CommandBuffer = cb.m_CommandBuffer;
             cb.m_CommandPool = VK_NULL_HANDLE;
+            return *this;
         }
         CommandBuffer& operator=(const CommandBuffer&) = delete;
 

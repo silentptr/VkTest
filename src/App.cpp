@@ -5,8 +5,7 @@ namespace VkTest
     const std::vector<const char*> App::m_DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
     App::App() : m_Window(m_AppSession), m_GraphicsDevice(m_AppSession, m_Window, m_DeviceExtensions), m_SwapChain(m_Window, m_GraphicsDevice), m_Pipeline(m_GraphicsDevice, m_SwapChain),
-    m_Framebuffer(m_GraphicsDevice, m_SwapChain, m_Pipeline)//, m_CommandBuffer(m_GraphicsDevice)
-    //m_ImgAvailSemaphore(VK_NULL_HANDLE), m_RenderDoneSemaphore(VK_NULL_HANDLE), m_InFlightFence(VK_NULL_HANDLE)
+    m_Framebuffer(m_GraphicsDevice, m_SwapChain, m_Pipeline)
     {
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -16,14 +15,12 @@ namespace VkTest
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         m_ImgAvailSemaphores.fill(VK_NULL_HANDLE);
-        //m_RenderDoneSemaphores.fill(VK_NULL_HANDLE);
         m_InFlightFences.fill(VK_NULL_HANDLE);
         m_CmdBuffers.reserve(m_InFlightCount);
 
         for (int i = 0; i < m_InFlightCount; ++i)
         {
             if (vkCreateSemaphore(m_GraphicsDevice.GetVkDevice(), &semaphoreInfo, nullptr, &m_ImgAvailSemaphores[i]) != VK_SUCCESS ||
-                //vkCreateSemaphore(m_GraphicsDevice.GetVkDevice(), &semaphoreInfo, nullptr, &m_RenderDoneSemaphores[i]) != VK_SUCCESS ||
                 vkCreateFence(m_GraphicsDevice.GetVkDevice(), &fenceInfo, nullptr, &m_InFlightFences[i]) != VK_SUCCESS)
             {
                 throw std::runtime_error("failed to create synchronization objects");
@@ -51,7 +48,6 @@ namespace VkTest
         for (int i = 0; i < m_InFlightCount; ++i)
         {
             if (m_ImgAvailSemaphores[i] != VK_NULL_HANDLE) { vkDestroySemaphore(m_GraphicsDevice.GetVkDevice(), m_ImgAvailSemaphores[i], nullptr); }
-            //if (m_RenderDoneSemaphores[i] != VK_NULL_HANDLE) { vkDestroySemaphore(m_GraphicsDevice.GetVkDevice(), m_RenderDoneSemaphores[i], nullptr); }
             if (m_InFlightFences[i] != VK_NULL_HANDLE) { vkDestroyFence(m_GraphicsDevice.GetVkDevice(), m_InFlightFences[i], nullptr); }
         }
 
@@ -63,10 +59,30 @@ namespace VkTest
 
     void App::Loop()
     {
+        double lastUpdate = glfwGetTime();
+        double now, delta;
+        double lastFpsCount = 0.0;
+        unsigned int frames = 0, fps;
+
         while (!glfwWindowShouldClose(m_Window.GetHandle()))
         {
             glfwPollEvents();
+
+            now = glfwGetTime();
+            delta = now - lastUpdate;
+            lastUpdate = now;
+            lastFpsCount += delta;
+
+            if (lastFpsCount >= 1.0)
+            {
+                fps = frames;
+                frames = 0;
+                lastFpsCount = 0.0;
+                std::cout << "FPS: " << std::to_string(fps) << '\n';
+            }
+
             Draw();
+            ++frames;
         }
 
         vkDeviceWaitIdle(m_GraphicsDevice.GetVkDevice());
