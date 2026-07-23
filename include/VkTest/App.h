@@ -36,10 +36,12 @@ namespace VkTest
         static constexpr int m_InFlightCount = 2;
         int m_InFlightIndex = 0;
 
+        // per in-flight frame resources
         std::array<VkSemaphore, m_InFlightCount> m_ImgAvailSemaphores;
-        std::vector<VkSemaphore> m_RenderDoneSemaphores;
         std::array<VkFence, m_InFlightCount> m_InFlightFences;
         std::vector<CommandBuffer> m_CmdBuffers;
+        // per swapchain image resources
+        std::vector<VkSemaphore> m_RenderDoneSemaphores;
 
         void Loop();
         void Draw();
