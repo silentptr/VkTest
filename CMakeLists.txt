@@ -4,7 +4,7 @@ project(VulkanTest VERSION 1.0.0 LANGUAGES CXX)
 option(VK_TEST_DEBUG "Enable debugging" OFF)
 
 find_package(glfw3 3.4 REQUIRED)
-find_package(Vulkan 1.3 REQUIRED COMPONENTS volk)
+find_package(Vulkan 1.2 REQUIRED COMPONENTS volk)
 
 set(VKTEST_SRC_FILES
     src/App.cpp
